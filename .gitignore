@@ -1,0 +1,8 @@
+backup/*
+pids/*
+test/*
+test*
+output/*
+logs/*
+data/*
+.idea/*
