@@ -22,6 +22,12 @@
 #                                                       Added TruncateHeaders directive
 #                                                       Added InputFileNameAsColumn directive
 #                                                       Added BackupAfterParse directive
+# 0.0.4                 eerkunt         20151222        Added ErrorDir directive
+#                                                       Removed warnings
+#                                                       Removed .backup suffix on backup files.
+#                                                       Removed Input files upon successful parse
+#                                                       Added timestamp on output files
+#                                                       Fixed a minor problem about BackupAfterParse directive
 #
 # Dependencies :
 # - Getopt::Std Perl module ( if you don't have this module already, you have serious problems )
@@ -30,7 +36,6 @@
 #
 
 use strict;
-use warnings;
 no warnings 'deprecated';
 use Getopt::Std;
 use UNIVERSAL 'isa';
@@ -39,7 +44,7 @@ use POSIX qw(strftime);
 use File::Copy;
 
 $| = 1;
-my $version     = "0.0.3";
+my $version     = "0.0.4";
 my $progName    = "perfDataParser";
 my $arguments   = "c:h";
 my %opt;
@@ -79,6 +84,8 @@ while(<CONFIG>) {
         $conf{output}{fileAsColumn} = $1;
     } elsif ( $_ =~ /^PIDFilePath=(.*)/i ) {
         $conf{main}{pidPath} = $1;
+    } elsif ( $_ =~ /^ErrorDir=(.*)/i ) {
+        $conf{error}{dir} = $1;
     }
 }
 close(CONFIG);
@@ -88,6 +95,7 @@ close(CONFIG);
 die("Can not find InputDir configuration directive in $opt{c}.") unless ($conf{input}{dir});
 die("Can not find OutputDir configuration directive in $opt{c}.") unless ($conf{output}{dir});
 die("Can not find BackupDir configuration directive in $opt{c}.") unless ($conf{backup}{dir});
+die("Can not find ErrorDir configuration directive in $opt{c}.") unless ($conf{error}{dir});
 die("Can not find LogDir configuration directive in $opt{c}.") unless ($conf{log}{dir});
 die("Can not find PRID configuration directive in $opt{c}.") unless ($conf{main}{prid});
 die("Can not find PIDFilePath configuration directive in $opt{c}.") unless ($conf{main}{pidPath});
@@ -149,6 +157,8 @@ for (@inputFiles) {
     chomp($_);
     DEBUG "-> $_ will be processed";
 }
+
+my $errorOccured = 0;
 
 for (@inputFiles) {
     print ".";
@@ -232,12 +242,23 @@ for (@inputFiles) {
                   push(@{$myData{$matchedKey}}, $value);
               } else {
                   ERROR "XML Error! Can not match Data Value with any Header Key!";
+                  $errorOccured = 1;
               }
           }
     }
-    my $backupFilename = $now."_".$currentFilename.".backup";
-    INFO "Backing up $currentFilename into $conf{backup}{dir} as $backupFilename";
-    copy($conf{input}{dir}."/".$currentFilename, $conf{backup}{dir}."/".$backupFilename) or die "$currentFilename can not be backed up ! Check if ".$conf{backup}{dir}." exists.";
+    if ( $conf{backup}{backupAfterParse} ) {
+        my $backupFilename = $currentFilename;
+        INFO "Backing up $currentFilename into $conf{backup}{dir} as $backupFilename";
+        copy($conf{input}{dir}."/".$currentFilename,
+            $conf{backup}{dir}."/".$backupFilename) or die "$currentFilename can not be backed up ! Check if ".$conf{backup}{dir}." exists.";
+    }
+    if ( $errorOccured ) {
+        my $errorFilename = $now."_".$currentFilename;
+        INFO "Copying $currentFilename into $conf{error}{dir} as $errorFilename";
+        copy($conf{input}{dir}."/".$currentFilename,
+            $conf{error}{dir}."/".$errorFilename) or die "$currentFilename can not be copied ! Check if ".$conf{error}{dir}." exists.";
+    }
+
 
     INFO "$currentFilename processed. Creating output.";
     # First create an array of CSV file ( line in each element )
@@ -268,7 +289,7 @@ for (@inputFiles) {
         push(@output, join($conf{output}{delimeter}, @dataOutput));
     }
 
-    my $outputFileName = $currentFilename.".csv";
+    my $outputFileName = $currentFilename."_".$now.".csv";
     DEBUG "Opening file ".$outputFileName." as read-write.";
     open(OUTPUT, "> ".$conf{output}{dir}."/".$outputFileName) or die("Can not open $outputFileName for writing.");
     DEBUG "Successfuly opened file ".$outputFileName." as read-write.";
@@ -277,6 +298,7 @@ for (@inputFiles) {
         DEBUG "Written into $outputFileName : $row";
     }
     close(OUTPUT);
+    unlink $conf{input}{dir}."/".$currentFilename;
 }
 
 unlink($pidFile);
