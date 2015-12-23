@@ -28,6 +28,7 @@
 #                                                       Removed Input files upon successful parse
 #                                                       Added timestamp on output files
 #                                                       Fixed a minor problem about BackupAfterParse directive
+# 0.0.5                 eerkunt         20151223        Removed timestamp of files moved to ErrorDir
 #
 # Dependencies :
 # - Getopt::Std Perl module ( if you don't have this module already, you have serious problems )
@@ -44,7 +45,7 @@ use POSIX qw(strftime);
 use File::Copy;
 
 $| = 1;
-my $version     = "0.0.4";
+my $version     = "0.0.5";
 my $progName    = "perfDataParser";
 my $arguments   = "c:h";
 my %opt;
@@ -253,7 +254,7 @@ for (@inputFiles) {
             $conf{backup}{dir}."/".$backupFilename) or die "$currentFilename can not be backed up ! Check if ".$conf{backup}{dir}." exists.";
     }
     if ( $errorOccured ) {
-        my $errorFilename = $now."_".$currentFilename;
+        my $errorFilename = $currentFilename;
         INFO "Copying $currentFilename into $conf{error}{dir} as $errorFilename";
         copy($conf{input}{dir}."/".$currentFilename,
             $conf{error}{dir}."/".$errorFilename) or die "$currentFilename can not be copied ! Check if ".$conf{error}{dir}." exists.";
