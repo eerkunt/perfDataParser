@@ -29,6 +29,7 @@
 #                                                       Added timestamp on output files
 #                                                       Fixed a minor problem about BackupAfterParse directive
 # 0.0.5                 eerkunt         20151223        Removed timestamp of files moved to ErrorDir
+#                                                       No output files will be created if any error occured on parsing
 #
 # Dependencies :
 # - Getopt::Std Perl module ( if you don't have this module already, you have serious problems )
@@ -258,48 +259,47 @@ for (@inputFiles) {
         INFO "Copying $currentFilename into $conf{error}{dir} as $errorFilename";
         copy($conf{input}{dir}."/".$currentFilename,
             $conf{error}{dir}."/".$errorFilename) or die "$currentFilename can not be copied ! Check if ".$conf{error}{dir}." exists.";
-    }
-
-
-    INFO "$currentFilename processed. Creating output.";
-    # First create an array of CSV file ( line in each element )
-    # Output that file to STDOUT or given file based on arguments
-    my @output;
-    my @headerArray;
-    my $elementCount = 0;
-    foreach my $headerElement ( sort keys %myData ) {
-        my ($id, $header) = split("##", $headerElement);
-        push(@headerArray, $header);
-        $elementCount = scalar ( @{$myData{$headerElement}} );
-    }
-    unshift @headerArray, "FileName" if ( $conf{output}{fileAsColumn} );
-    $output[0] = join($conf{output}{delimeter}, @headerArray ) unless ($conf{output}{truncateHeader});
-
-
-    DEBUG "Total number of ".$elementCount." rows.";
-    for(@headerArray) {
-        chomp($_);
-        DEBUG "-> Header : $_";
-    }
-    for(my $i=0; $i<$elementCount; $i++) {
-        my @dataOutput;
+    } else {
+        INFO "$currentFilename processed. Creating output.";
+        # First create an array of CSV file ( line in each element )
+        # Output that file to STDOUT or given file based on arguments
+        my @output;
+        my @headerArray;
+        my $elementCount = 0;
         foreach my $headerElement ( sort keys %myData ) {
-            push(@dataOutput, $myData{$headerElement}[$i]);
+            my ($id, $header) = split("##", $headerElement);
+            push(@headerArray, $header);
+            $elementCount = scalar ( @{$myData{$headerElement}} );
         }
-        unshift @dataOutput, $currentFilename if ( $conf{output}{fileAsColumn} );
-        push(@output, join($conf{output}{delimeter}, @dataOutput));
-    }
+        unshift @headerArray, "FileName" if ( $conf{output}{fileAsColumn} );
+        $output[0] = join($conf{output}{delimeter}, @headerArray ) unless ($conf{output}{truncateHeader});
 
-    my $outputFileName = $currentFilename."_".$now.".csv";
-    DEBUG "Opening file ".$outputFileName." as read-write.";
-    open(OUTPUT, "> ".$conf{output}{dir}."/".$outputFileName) or die("Can not open $outputFileName for writing.");
-    DEBUG "Successfuly opened file ".$outputFileName." as read-write.";
-    foreach my $row ( @output ) {
-        print OUTPUT $row."\n";
-        DEBUG "Written into $outputFileName : $row";
+
+        DEBUG "Total number of ".$elementCount." rows.";
+        for(@headerArray) {
+            chomp($_);
+            DEBUG "-> Header : $_";
+        }
+        for(my $i=0; $i<$elementCount; $i++) {
+            my @dataOutput;
+            foreach my $headerElement ( sort keys %myData ) {
+                push(@dataOutput, $myData{$headerElement}[$i]);
+            }
+            unshift @dataOutput, $currentFilename if ( $conf{output}{fileAsColumn} );
+            push(@output, join($conf{output}{delimeter}, @dataOutput));
+        }
+
+        my $outputFileName = $currentFilename."_".$now.".csv";
+        DEBUG "Opening file ".$outputFileName." as read-write.";
+        open(OUTPUT, "> ".$conf{output}{dir}."/".$outputFileName) or die("Can not open $outputFileName for writing.");
+        DEBUG "Successfuly opened file ".$outputFileName." as read-write.";
+        foreach my $row ( @output ) {
+            print OUTPUT $row."\n";
+            DEBUG "Written into $outputFileName : $row";
+        }
+        close(OUTPUT);
+        unlink $conf{input}{dir}."/".$currentFilename;
     }
-    close(OUTPUT);
-    unlink $conf{input}{dir}."/".$currentFilename;
 }
 
 unlink($pidFile);
